@@ -2,14 +2,24 @@ from flask import Flask, request, render_template, redirect, session, url_for, f
 from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import os
+from azure.storage.blob import BlobServiceClient  # Import the Azure Blob SDK
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
-app.config['UPLOAD_FOLDER'] = 'uploads'  # Directory to store uploaded files
+app.config['UPLOAD_FOLDER'] = 'uploads'  # Directory to store uploaded files (if needed locally)
 app.secret_key = 'secret_key'
 db = SQLAlchemy(app)
 
-# Ensure the upload folder exists
+# Azure Blob Storage credentials
+sas_token = "<sv=2022-11-02&ss=b&srt=sco&sp=rwdlacytfx&se=2024-08-25T07:09:45Z&st=2024-08-24T23:09:45Z&spr=https&sig=JlUw223dS5raxeYi%2B5UFax8jweR3xBo8D4wmyz13fSA%3D>"
+account_name = "<winproj1sa>"
+container_name = "<winproj1container>"
+
+# Initialize the BlobServiceClient
+blob_service_client = BlobServiceClient(account_url=f"https://{account_name}.blob.core.windows.net", credential=sas_token)
+container_client = blob_service_client.get_container_client(container_name)
+
+# Ensure the upload folder exists (optional if still saving locally)
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
@@ -73,9 +83,10 @@ def dashboard():
             # Handle file upload
             file = request.files['file']
             if file:
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-                file.save(file_path)
-                flash('File uploaded successfully')
+                # Upload file to Azure Blob Storage
+                blob_client = container_client.get_blob_client(file.requirements.txt)
+                blob_client.upload_blob(file.stream)  # Upload file stream directly to Blob Storage
+                flash('File uploaded to Azure Blob Storage successfully')
                 return redirect('/dashboard')
 
         return render_template('dashboard.html', user=user)
